@@ -22,6 +22,7 @@ AM_INIT_AUTOMAKE
 
 AC_CONFIG_SRCDIR(csync2.c)
 AM_CONFIG_HEADER(config.h)
+AC_CONFIG_MACRO_DIRS([m4])
 
 # Use /etc and /var instead of $prefix/...
 # test "$localstatedir" = '${prefix}/var' && localstatedir=/var
@@ -70,6 +71,15 @@ fi
 
 # check for large file support
 AC_SYS_LARGEFILE
+
+# Check for pthread
+AX_PTHREAD(, [AC_MSG_ERROR([libpthread is required])])
+LIBS="$PTHREAD_LIBS $LIBS"
+CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
+CXXFLAGS="$CXXFLAGS $PTHREAD_CFLAGS"
+CC="$PTHREAD_CC"
+CXX="$PTHREAD_CXX"
+
 
 # Check for librsync.
 AC_ARG_WITH([librsync-source],
