@@ -30,6 +30,7 @@
 #include <fnmatch.h>
 #include <stdarg.h>
 #include <signal.h>
+#include <pthread.h>
 
 static int connection_closed_error = 1;
 
@@ -833,16 +834,37 @@ void csync_update_host(const char *peername,
 	csync_update_host_c(&c);
 }
 
+void *csync_update_host_thread(void *_args){
+	struct csync_host_update_args *args = (struct csync_host_update_args *) _args;
+
+	csync_debug(0, "Peer: %s, starting a new thread.\n", args->peername);
+	csync_update_host(args->peername, args->patlist, args->patnum, args->recursive, args->dry_run);
+	return NULL;
+}
 
 void csync_update(const char ** patlist, int patnum, int recursive, int dry_run)
 {
 	struct textlist *tl = 0, *t;
+	struct csync_host_update_args *args_list = 0;
+	pthread_t *threads = 0;
+	long dirty_peer_count = 0;
+	int index = 0;
 
 	SQL_BEGIN("Get hosts from dirty table",
 		"SELECT peername FROM dirty GROUP BY peername")
 	{
 		textlist_add(&tl, url_decode(SQL_V(0)), 0);
 	} SQL_END;
+
+
+	for (t = tl; t != 0; t = t->next) {
+		dirty_peer_count++;
+	}
+
+	if (dirty_peer_count != 0) {
+		args_list = calloc(dirty_peer_count, sizeof(struct csync_host_update_args));
+		threads = calloc(dirty_peer_count, sizeof(pthread_t));
+	}
 
 	for (t = tl; t != 0; t = t->next) {
 		if (active_peerlist) {
@@ -858,8 +880,32 @@ void csync_update(const char ** patlist, int patnum, int recursive, int dry_run)
 			continue;
 		}
 found_asactive:
-		csync_update_host(t->value, patlist, patnum, recursive, dry_run);
+		args_list[index].peername = t->value;
+		args_list[index].patlist = patlist;
+		args_list[index].patnum = patnum;
+		args_list[index].recursive = recursive;
+		args_list[index].dry_run = dry_run;
+
+		if(pthread_create(threads + index, NULL, csync_update_host_thread, (void *)(args_list + index))) {
+			csync_fatal("Could not start pthread for peer: %s\n", t->value);
+		}
+		index++;
 	}
+
+
+	for(index = 0; index < dirty_peer_count; index++) {
+		if (threads[index]) {
+			pthread_join(threads[index], NULL);
+			csync_debug(0, "Peer: %s, thread finished.\n", args_list[index].peername);
+		}
+
+	}
+
+	if (threads != 0)
+		free(threads);
+
+	if (args_list != 0)
+		free(args_list);
 
 	textlist_free(tl);
 }

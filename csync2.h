@@ -372,6 +372,14 @@ struct csync_group_action {
 	int do_local_only;
 };
 
+struct csync_host_update_args {
+	const char *peername;
+	const char ** patlist;
+	int patnum;
+	int recursive;
+	int dry_run;
+};
+
 struct csync_group {
 	struct csync_group *next;
 	struct csync_group_host *host;
