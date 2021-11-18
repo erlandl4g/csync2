@@ -487,5 +487,10 @@ static inline char *on_cygwin_lowercase(char *s) {
 	return s;
 }
 
+static inline long long mtime_nano(const struct stat *st)
+{
+	return st->st_mtime * 1000000000 + st->st_mtim.tv_nsec;
+}
+
 #endif /* CSYNC2_H */
 

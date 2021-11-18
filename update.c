@@ -316,7 +316,7 @@ auto_resolve_entry_point:
 		goto got_error;
 	}
 
-	long long nano_timestamp = st.st_mtime * 1000000000 + st.st_mtim.tv_nsec;
+	long long nano_timestamp = mtime_nano(&st);
 
 	if ( force ) {
 		if ( dry_run ) {
@@ -540,7 +540,7 @@ maybe_auto_resolve:
 				{
 					static char buffer[4 * 4096];
 					char *type, *cmd;
-					long remotedata, localdata;
+					long long remotedata, localdata;
 					struct stat sbuf;
 
 					if (auto_method == CSYNC_AUTO_METHOD_YOUNGER ||
@@ -567,7 +567,7 @@ maybe_auto_resolve:
 
 					if (auto_method == CSYNC_AUTO_METHOD_YOUNGER ||
 					    auto_method == CSYNC_AUTO_METHOD_OLDER)
-						localdata = sbuf.st_mtime;
+						localdata = mtime_nano(&sbuf);
 					else
 						localdata = sbuf.st_size;
 

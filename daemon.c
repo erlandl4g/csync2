@@ -652,8 +652,8 @@ void csync_daemon_session()
 				struct stat sbuf;
 				conn_resp(CR_OK_DATA_FOLLOWS);
 				if (!lstat_strict(prefixsubst(tag[2]), &sbuf))
-					conn_printf("%ld\n", cmdtab[cmdnr].action == A_GETTM ?
-							(long)sbuf.st_mtime : (long)sbuf.st_size);
+					conn_printf("%lld\n", cmdtab[cmdnr].action == A_GETTM ?
+							mtime_nano(&sbuf) : sbuf.st_size);
 				else
 					conn_printf("-1\n");
 				goto next_cmd;

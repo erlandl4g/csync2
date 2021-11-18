@@ -50,8 +50,7 @@ const char *csync_genchecktxt(const struct stat *st, const char *filename, int i
 	xxprintf("v1");
 
 	if ( !S_ISLNK(st->st_mode) && !S_ISDIR(st->st_mode) ) {
-		int64_t timestamp = st->st_mtime * 1000000000 + st->st_mtim.tv_nsec;
-		xxprintf(":mtime=%lld", ign_mtime ? (long long)0 : (long long)timestamp);
+		xxprintf(":mtime=%lld", ign_mtime ? 0 : mtime_nano(st));
 	}
 
 	if ( !csync_ignore_mod )
