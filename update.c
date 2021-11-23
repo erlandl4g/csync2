@@ -744,7 +744,7 @@ struct textlist *csync_find_dirty(struct update_context *c)
 		int use_this = (c->patnum == 0);
 		int i;
 		for (i=0; i < c->patnum && !use_this; i++)
-			if (compare_files(filename, c->patlist[i], c->recursive))
+			if (compare_files(prefixsubst(filename), c->patlist[i], c->recursive))
 				use_this = 1;
 		if (use_this)
 			textlist_add2(&tl, filename, url_decode(SQL_V(1)), atoi(SQL_V(2)));
