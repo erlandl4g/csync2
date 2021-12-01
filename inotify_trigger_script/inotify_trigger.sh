@@ -4,18 +4,18 @@
 #
 # $1: csync2 options to passthrough
 
-check_interval=0.5                       # Time between queue check in seconds, fractions allowed
-file_events="close_write,move,delete,attrib"  # File events to monitor - no spaces in this list
-queue_file=/home/learn4gd/tmp/inotify_queue.log        # File used for event queue
+check_interval=0.5                               # Time between queue check in seconds, fractions allowed
+file_events="close_write,move,delete"            # File events to monitor - no spaces in this list
+queue_file=/home/learn4gd/tmp/inotify_queue.log  # File used for event queue
 
 cfg_path=/usr/local/etc
 cfg_file=csync2.cfg
 
 csync_opts="$*"
 
-#Start listening for peer transmissions 
-##TO DO: To prevent errors use only -N option from $csync_opts on the line below (stripped options)
-csync2 -ii $csync_opts & 
+# Start csync server - use subshell so it terminates when script is killed
+# TODO: Separate hostname from other csync options so it can be used here exclusively
+(csync2 -ii $csync_opts) &
 
 # Parse csync2 config file for included and excluded locations
 while read -r key value
@@ -63,8 +63,6 @@ truncate -s 0 $queue_file
 		echo "$file" >> $queue_file
 	done
 ) &
-# Kill background subshell on exit
-trap "kill $!" EXIT
 
 # Run a full check and sync before queue monitoring begins
 echo "* INITIAL CSYNC CHECK"
