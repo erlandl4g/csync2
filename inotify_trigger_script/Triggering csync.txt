@@ -1,0 +1,62 @@
+
+## Summary of the problem
+
+Updating of cluster peers is taking too long on a directory with over 170,000 files. The delay of around 6 seconds causes the other peers to update their own caches which then cause further syncs. It is important to sync files immediately (maximum 2 second time-frame).
+
+The existing csync2 -x option causes all files in included directories to be checked individually. This involves multiple database reads and file stat calls for every file. Running a csync check command constantly on a directory with over 170,000 files must be quite an intensive task for each server.
+
+
+## Solution
+
+I decided that the optimal solution is to use the kernel inotify system (via inotify-tools) and an external script to inform csync of altered files.
+
+I have chosen an external script over adding inotify support to csync for the following reasons:
+
+* The server/daemon modes in csync are purely for receiving and responding to network commands - the server modes are not for updating file status
+* Updating csync externally is how it was designed to be used
+* The inotify tools are mature and battle-tested unlike any additions to the somewhat fragile csync codebase
+* A simple bash script gives you more flexibility and freedom to makes changes
+
+The main point of this script is that it will only run when files actually change - it will then react and sync immediately. There is no constant checking of all files to see if they've changed.
+
+The new script is called `inotify-trigger.sh`.
+
+## Workings
+
+1. Included and excluded directories are pulled from the csync2.cfg file
+2. inotify monitors these locations in the background and adds changed files to a FIFO queue (a file of your choosing)
+3. The queue is then read periodically (default every 0.5 seconds) and passed onto csync
+4. csync runs in two stages: 
+	1) marks all the changed files as dirty
+	2) sends all dirty files to peers - this update will include *all* dirty files so any left over from previous times (or added in other ways) will be transferred
+
+* Adding and reading the file queue uses a lock to ensure nothing is lost between the two parallel processes - it slows down filling of the queue a little but not the processing part.
+* Locations are monitored using `inotifywait` which then pipes changed filenames for adding to the queue. Because it uses pipes, the kernel will block subsequent notifications until the current one has been handled - in other words, all file notifications will be safely handled in turn.
+
+The script has no options of its own. Anything passed to it will be passed onto the `csync2` calls.
+
+Example
+
+`./inotify-trigger.sh -N 2.csync2.test`
+
+At the top of the script are variables for the update interval, the queue outfile, the file events to monitor and the csync system directory (defaults to /etc) and config file name.
+
+
+## Notes
+
+* Directories are monitored recursively
+* I have selected these file events: create,modify,move,delete - we want to keep the list as short as possible
+* The `close_write` inotify file event also catches actions `modify`, `attrib` and `create` which often results in double notifications - that's why I'm not using it
+* It is best to change the csync tempdir to an external directory so that temp files in the watched directories do not trigger a sync (but temp files will not be synced because they do not exist in the csync db)
+* **The directory specified for the tempdir config must be on the same filesystem as the watched directories** - see csync manual for details
+
+
+## Installation
+
+Dependent on `inotify-tools` which should be available in most package managers.
+
+The new `inotify-trigger.sh` script **replaces** your other automatic checking scripts (-x option) - disable that on all servers.
+
+The new script should be **run once at startup on each server**. It stays open with inotifywait in monitor mode. You could use systemd to launch this at startup.
+
+The csync servers are still required as before for receiving and reacting to network commands sent by csync via the `inotify-trigger.sh` script. You can run that with inetd or systemd.
