@@ -5,7 +5,7 @@
 # $1: csync2 options to passthrough
 
 check_interval=0.5                               # Time between queue check in seconds, fractions allowed
-file_events="close_write,move,delete,attrib,create"            # File events to monitor - no spaces in this list
+file_events="move,delete,attrib,create"            # File events to monitor - no spaces in this list
 queue_file=/home/learn4gd/tmp/inotify_queue.log  # File used for event queue
 
 num_lines_until_reset=200000         # Reset queue log file after reading this many lines
