@@ -19,7 +19,7 @@ I have chosen an external script over adding inotify support to csync for the fo
 
 The main point of this script is that it will only run when files actually change - it will then react and sync immediately. There is no constant checking of all files to see if they've changed.
 
-The new script is called `inotify-trigger.sh`.
+The new script is called `inotify_csync.sh`.
 
 ## Workings
 
@@ -30,14 +30,14 @@ The new script is called `inotify-trigger.sh`.
 	1) marks all the changed files as dirty
 	2) sends all dirty files to peers - this update will include *all* dirty files so any left over from previous times (or added in other ways) will be transferred
 
-* Adding and reading the file queue uses a lock to ensure nothing is lost between the two parallel processes - it slows down filling of the queue a little but not the processing part.
+* To avoid slow locks and coordination between inotify and file processing, a rolling queue and file position is used - the queue file is reset once a certain number of lines has passed
 * Locations are monitored using `inotifywait` which then pipes changed filenames for adding to the queue. Because it uses pipes, the kernel will block subsequent notifications until the current one has been handled - in other words, all file notifications will be safely handled in turn.
 
 The script has no options of its own. Anything passed to it will be passed onto the `csync2` calls.
 
 Example
 
-`./inotify-trigger.sh -N 2.csync2.test`
+`./inotify_csync.sh -N 2.csync2.test`
 
 At the top of the script are variables for the update interval, the queue outfile, the file events to monitor and the csync system directory (defaults to /etc) and config file name.
 
@@ -55,8 +55,8 @@ At the top of the script are variables for the update interval, the queue outfil
 
 Dependent on `inotify-tools` which should be available in most package managers.
 
-The new `inotify-trigger.sh` script **replaces** your other automatic checking scripts (-x option) - disable that on all servers.
+The new `inotify_csync.sh` script **replaces** your other automatic checking scripts (-x option) - disable that on all servers.
 
 The new script should be **run once at startup on each server**. It stays open with inotifywait in monitor mode. You could use systemd to launch this at startup.
 
-The csync servers are still required as before for receiving and reacting to network commands sent by csync via the `inotify-trigger.sh` script. You can run that with inetd or systemd.
+The csync servers are still required as before for receiving and reacting to network commands sent by csync via the `inotify_csync.sh` script. You can run that with inetd or systemd.
