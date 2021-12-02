@@ -8,7 +8,8 @@ check_interval=0.5                               # Time between queue check in s
 file_events="close_write,move,delete"            # File events to monitor - no spaces in this list
 queue_file=/home/learn4gd/tmp/inotify_queue.log  # File used for event queue
 
-num_lines_until_reset=200000  # Reset queue log file after reading this many lines
+num_lines_until_reset=200000         # Reset queue log file after reading this many lines
+num_batched_changes_threshold=15000  # Number of changes in one batch that will trigger a full sync and reset
 
 cfg_path=/usr/local/etc
 cfg_file=csync2.cfg
@@ -67,15 +68,15 @@ truncate -s 0 $queue_file
 ) &
 
 # Run a full check and sync operation
-function csync_full_check()
+function csync_full_sync()
 {
-	echo "* FULL CSYNC CHECK"
+	echo "* FULL SYNC"
 	csync2 $csync_opts -x
 	echo "  - Done"
 }
 
 # Run a full check and sync before queue monitoring begins
-csync_full_check
+csync_full_sync
 
 # Periodically monitor inotify queue file
 queue_line_pos=1
@@ -98,7 +99,7 @@ do
 			queue_line_pos=1
 
 			# Run a full sync in case inotify added after read
-			csync_full_check
+			csync_full_sync
 		fi
 		# Jump back to sleep
 		continue
@@ -114,6 +115,21 @@ do
 
 	# DEBUG: Output files processed in each cycle
 	# printf "%s\n" "${csync_files[@]}" >> "/tmp/csync_$(date +%s%3N).log"
+
+	# Check number of files in this batch
+	if [[ ${#csync_files[@]} -ge $num_batched_changes_threshold ]]
+	then
+		# Large batch - run full sync and reset
+		# This is primarily to guard against missed events that can occur when the inotifywait buffer is full
+		echo "* LARGE BATCH"
+		truncate -s 0 $queue_file
+		queue_line_pos=1
+
+		csync_full_sync
+
+		# Jump back to sleep
+		continue
+	fi
 
 	# Process queue with csync
 	# Split into two stages so that outstanding dirty files can be processed regardless of when or where they were marked

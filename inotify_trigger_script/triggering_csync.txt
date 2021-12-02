@@ -42,11 +42,18 @@ Example
 At the top of the script are variables for the update interval, the queue outfile, the file events to monitor and the csync system directory (defaults to /etc) and config file name.
 
 
+## Settings
+
+`num_lines_until_reset` The total number of lines read from the file queue that will trigger a full reset and sync. This prevents the log file from becoming too large. A full sync is performed after resetting the file in case inotify added events between reading and resetting.
+
+`num_batched_changes_threshold` The number of file changes in one processed batch that will trigger a full csync check and sync. This is primarily to guard against missed events that can occur when the inotifywait buffer is full.
+
+
 ## Notes
 
 * Directories are monitored recursively
-* I have selected these file events: create,modify,move,delete - we want to keep the list as short as possible
-* The `close_write` inotify file event also catches actions `modify`, `attrib` and `create` which often results in double notifications - that's why I'm not using it
+* Watching file events: close_write,move,delete - we want to keep the list as short as possible
+* The `close_write` inotify file event also catches actions `modify`, `attrib` and `create`
 * It is best to change the csync tempdir to an external directory so that temp files in the watched directories do not trigger a sync (but temp files will not be synced because they do not exist in the csync db)
 * **The directory specified for the tempdir config must be on the same filesystem as the watched directories** - see csync manual for details
 
