@@ -4,10 +4,10 @@
 #
 # $1: csync2 options to passthrough
 
-check_interval=0.5                               # Time between queue check in seconds, fractions allowed
-file_events="move,delete,attrib,create,close_write,modify"            # File events to monitor - no spaces in this list
-queue_file=/home/learn4gd/tmp/inotify_queue.log  # File used for event queue
+file_events="move,delete,attrib,create,close_write,modify" # File events to monitor - no spaces in this list
+queue_file=/home/learn4gd/tmp/inotify_queue.log            # File used for event queue
 
+check_interval=0.5                   # Time between queue check in seconds, fractions allowed
 num_lines_until_reset=200000         # Reset queue log file after reading this many lines
 num_batched_changes_threshold=15000  # Number of changes in one batch that will trigger a full sync and reset
 
@@ -18,7 +18,11 @@ csync_opts="$*"
 
 # Start csync server - use subshell so it terminates when script exits
 # TODO: Separate hostname from other csync options so it can be used here exclusively
-(csync2 -ii $csync_opts) &
+csync2 -ii $csync_opts &
+csync_pid=$!
+
+# Stop background csync server on exit
+trap "kill $csync_pid" EXIT
 
 # Parse csync2 config file for included and excluded locations
 while read -r key value
@@ -50,7 +54,7 @@ fi
 truncate -s 0 $queue_file
 
 # Monitor for events in the background and pipe triggered files to queue file
-(
+{
 	inotifywait --monitor --recursive --event $file_events --format "%w%f" "${includes[@]}" | while read -r file
 	do
 		# Check if excluded
@@ -65,7 +69,10 @@ truncate -s 0 $queue_file
 
 		echo "$file" >> $queue_file
 	done
-) &
+} &
+# Stop background inotify monitor and csync server on exit
+inotify_pid=$!
+trap "kill $inotify_pid; kill $csync_pid;" EXIT
 
 # Run a full check and sync operation
 function csync_full_sync()
@@ -105,7 +112,7 @@ do
 		continue
 	fi
 
-	echo "* PROCESSING QUEUE ($queue_line_pos)"
+	echo "* PROCESSING QUEUE (line $queue_line_pos)"
 
 	# Advance queue file position
 	((queue_line_pos+=${#file_list[@]}))
@@ -121,7 +128,7 @@ do
 	then
 		# Large batch - run full sync and reset
 		# This is primarily to guard against missed events that can occur when the inotifywait buffer is full
-		echo "* LARGE BATCH"
+		echo "* LARGE BATCH (${#csync_files[@]} files)"
 		truncate -s 0 $queue_file
 		queue_line_pos=1
 
