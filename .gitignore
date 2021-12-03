@@ -113,3 +113,6 @@ cfgfile_parser.h
 cfgfile_scanner.c
 config.h
 csync2
+
+*.sublime-project
+*.sublime-workspace
