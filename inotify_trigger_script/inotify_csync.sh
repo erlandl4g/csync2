@@ -4,25 +4,47 @@
 #
 # $1: csync2 options to passthrough
 
+
+# --- SETTINGS ---
+
 file_events="move,delete,attrib,create,close_write,modify" # File events to monitor - no spaces in this list
 queue_file=/home/learn4gd/tmp/inotify_queue.log            # File used for event queue
 
-check_interval=0.5                   # Time between queue check in seconds, fractions allowed
+check_interval=0.5                   # Seconds between queue checks - fractions allowed
 num_lines_until_reset=200000         # Reset queue log file after reading this many lines
 num_batched_changes_threshold=15000  # Number of changes in one batch that will trigger a full sync and reset
 
 cfg_path=/usr/local/etc
 cfg_file=csync2.cfg
 
-csync_opts="$*"
+# Separate all passed options for csync
+csync_opts=("$@")
 
-# Start csync server - use subshell so it terminates when script exits
-# TODO: Separate hostname from other csync options so it can be used here exclusively
-csync2 -ii $csync_opts &
+
+# --- CSYNC SERVER ---
+
+# Extract server-specific options
+server_opts=()
+# Hostname
+if [[ $* =~ -N[[:space:]]?([[:alnum:]\.]+) ]]
+then
+	server_opts+=(-N "${BASH_REMATCH[1]}") # added as two elements
+fi
+# Database path
+if [[ $* =~ -D[[:space:]]?([[:graph:]]+) ]]
+then
+	server_opts+=(-D "${BASH_REMATCH[1]}")
+fi
+
+# Start csync server
+csync2 -ii "${server_opts[@]}" &
 csync_pid=$!
 
 # Stop background csync server on exit
 trap "kill $csync_pid" EXIT
+
+
+# --- PARSE CSYNC CONFIG FILE ---
 
 # Parse csync2 config file for included and excluded locations
 while read -r key value
@@ -42,13 +64,16 @@ done < "$cfg_path/$cfg_file"
 
 echo " INC: ${includes[*]}"
 echo " EXC: ${excludes[*]}"
-echo "OPTS: $csync_opts"
+echo "OPTS: ${csync_opts[*]}"
 
 if [[ ${#includes[@]} -eq 0 ]]
 then
 	echo "No include locations found"
 	exit 1
 fi
+
+
+# --- INOTIFY FILE MONITOR ---
 
 # Reset queue file
 truncate -s 0 $queue_file
@@ -72,18 +97,25 @@ truncate -s 0 $queue_file
 } &
 # Stop background inotify monitor and csync server on exit
 inotify_pid=$!
-trap "kill $inotify_pid; kill $csync_pid;" EXIT
+trap "kill $inotify_pid; kill $csync_pid" EXIT
+
+
+# --- CSYNC HELPERS ---
 
 # Run a full check and sync operation
 function csync_full_sync()
 {
 	echo "* FULL SYNC"
-	csync2 $csync_opts -x
+	csync2 "${csync_opts[@]}" -x
 	echo "  - Done"
 }
 
+
 # Run a full check and sync before queue monitoring begins
 csync_full_sync
+
+
+# --- QUEUE PROCESSING ---
 
 # Periodically monitor inotify queue file
 queue_line_pos=1
@@ -143,11 +175,11 @@ do
 
 	#   1. Check and possibly mark queued files as dirty
 	echo "  - Checking ${#csync_files[@]} files"
-	csync2 $csync_opts -c "${csync_files[@]}"
+	csync2 "${csync_opts[@]}" -c "${csync_files[@]}"
 
 	#   2. Update outstanding dirty files on peers
 	echo "  - Updating all dirty files"
-	csync2 $csync_opts -u
+	csync2 "${csync_opts[@]}" -u
 
 	echo "  - Done"
 done
