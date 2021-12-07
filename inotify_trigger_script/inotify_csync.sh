@@ -9,6 +9,7 @@
 
 file_events="move,delete,attrib,create,close_write,modify" # File events to monitor - no spaces in this list
 queue_file=/home/learn4gd/tmp/inotify_queue.log            # File used for event queue
+csync_log=/home/learn4gd/tmp/csync_server.log              # File used for monitoring csync server timings
 
 check_interval=0.5                   # Seconds between queue checks - fractions allowed
 num_lines_until_reset=200000         # Reset queue log file after reading this many lines
@@ -25,23 +26,32 @@ csync_opts=("$@")
 
 # Extract server-specific options
 server_opts=()
-# Hostname
-if [[ $* =~ -N[[:space:]]?([[:alnum:]\.]+) ]]
+if [[ $* =~ -N[[:space:]]?([[:alnum:]\.]+) ]]  # hostname
 then
 	server_opts+=(-N "${BASH_REMATCH[1]}") # added as two elements
 fi
-# Database path
-if [[ $* =~ -D[[:space:]]?([[:graph:]]+) ]]
+if [[ $* =~ -D[[:space:]]?([[:graph:]]+) ]]    # database path
 then
 	server_opts+=(-D "${BASH_REMATCH[1]}")
 fi
 
-# Start csync server
-csync2 -ii "${server_opts[@]}" &
+# Start csync server outputting timings to log for monitoring activity status
+csync2 -ii -t "${server_opts[@]}" &> $csync_log &
 csync_pid=$!
+
+# Wait for server startup before checking log for errors
+sleep 0.5
+tail --lines=1 $csync_log | grep --quiet error  # is the last line an error?
+if [[ $? -eq 0 ]]
+then
+	echo "Failed to start csync server"
+	exit 1
+fi
 
 # Stop background csync server on exit
 trap "kill $csync_pid" EXIT
+
+echo "* SERVER RUNNING"
 
 
 # --- PARSE CSYNC CONFIG FILE ---
@@ -97,25 +107,62 @@ truncate -s 0 $queue_file
 } &
 # Stop background inotify monitor and csync server on exit
 inotify_pid=$!
+
+# Stop background inotify monitor and csync server on exit
 trap "kill $inotify_pid; kill $csync_pid" EXIT
 
+echo "* INOTIFY RUNNING"
 
-# --- CSYNC HELPERS ---
+
+# --- HELPERS ---
+
+# Wait until csync server is quiet
+function csync_wait()
+{
+	# Wait until the end timestamp record appears in the last log line or if the file is empty
+	until tail --lines=1 $csync_log | grep --quiet TOTALTIME || [[ ! -s $csync_log ]]
+	do
+		echo "...waiting for csync server..."
+		sleep $check_interval
+	done
+}
+
 
 # Run a full check and sync operation
 function csync_full_sync()
 {
 	echo "* FULL SYNC"
+
+	# First wait until csync server is quiet
+	csync_wait
+
 	csync2 "${csync_opts[@]}" -x
 	echo "  - Done"
 }
 
 
-# Run a full check and sync before queue monitoring begins
-csync_full_sync
+# Reset queue
+function reset_queue()
+{
+	echo "* RESET QUEUE LOG"
+
+	# Reset queue log file
+	truncate -s 0 $queue_file
+	queue_line_pos=1
+
+	# Run a full sync in case inotify triggered during reset
+	csync_full_sync
+
+	# Reset csync server log too
+	truncate -s 0 $csync_log
+}
 
 
 # --- QUEUE PROCESSING ---
+
+# First run a full check and sync before queue processing begins - after file monitor started so no changes are missed in-between
+csync_full_sync
+
 
 # Periodically monitor inotify queue file
 queue_line_pos=1
@@ -132,13 +179,7 @@ do
 		# No new entries - time to check for reset
 		if [[ $queue_line_pos -ge $num_lines_until_reset ]]
 		then
-			# Reset queue file
-			echo "* RESET QUEUE"
-			truncate -s 0 $queue_file
-			queue_line_pos=1
-
-			# Run a full sync in case inotify added after read
-			csync_full_sync
+			reset_queue
 		fi
 		# Jump back to sleep
 		continue
@@ -161,16 +202,17 @@ do
 		# Large batch - run full sync and reset
 		# This is primarily to guard against missed events that can occur when the inotifywait buffer is full
 		echo "* LARGE BATCH (${#csync_files[@]} files)"
-		truncate -s 0 $queue_file
-		queue_line_pos=1
 
-		csync_full_sync
+		reset_queue
 
 		# Jump back to sleep
 		continue
 	fi
 
-	# Process queue with csync
+	# Wait until csync server is quiet
+	csync_wait
+
+	# Process files by sending csync commands
 	# Split into two stages so that outstanding dirty files can be processed regardless of when or where they were marked
 
 	#   1. Check and possibly mark queued files as dirty

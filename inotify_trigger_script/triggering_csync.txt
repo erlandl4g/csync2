@@ -23,11 +23,13 @@ The new script is called `inotify_csync.sh`.
 
 ## Workings
 
-1. Included and excluded directories are pulled from the csync2.cfg file
-2. inotify monitors these locations in the background and adds changed files to a FIFO queue (a file of your choosing)
-3. The queue is then read periodically (default every 0.5 seconds) and passed onto csync
-4. csync runs in two stages: 
-	1) marks all the changed files as dirty
+1. A csync server is started using the passed options - this instance outputs activity timestamps to a log file for monitoring
+2. Included and excluded directories are pulled from the csync2.cfg file
+3. inotify monitors these locations in the background and adds changed files to a FIFO queue (a file of your choosing)
+4. The queue is then read periodically looking for new items - duplicates are removed in readiness for running csync commands
+5. The csync server log is used to check for activity - csync commands are delayed until there is no activity in order to avoid deadlocks
+6. csync processing runs in two stages: 
+	1) run a check command to see if the file should be marked as dirty
 	2) sends all dirty files to peers - this update will include *all* dirty files so any left over from previous times (or added in other ways) will be transferred
 
 * To avoid slow locks and coordination between inotify and file processing, a rolling queue and file position is used - the queue file is reset once a certain number of lines has passed
