@@ -88,24 +88,24 @@ fi
 # Reset queue file
 truncate -s 0 $queue_file
 
-# Monitor for events in the background and pipe triggered files to queue file
-{
-	inotifywait --monitor --recursive --event $file_events --format "%w%f" "${includes[@]}" | while read -r file
+# Monitor for events in the background and add altered files to queue file
+while read -r file
+do
+	# Check if excluded
+	for excluded in "${excludes[@]}"
 	do
-		# Check if excluded
-		for excluded in "${excludes[@]}"
-		do
-			if [[ $file == $excluded* ]]
-			then
-				# Excluded - skip this file and return to inotifywait
-				continue 2
-			fi
-		done
-
-		echo "$file" >> $queue_file
+		if [[ $file == $excluded* ]]
+		then
+			# Excluded - skip this file and return to inotifywait
+			continue 2
+		fi
 	done
-} &
-# Stop background inotify monitor and csync server on exit
+
+	# Add file to queue
+	echo "$file" >> $queue_file
+
+done < <(inotifywait --monitor --recursive --event $file_events --format "%w%f" "${includes[@]}") &
+
 inotify_pid=$!
 
 # Stop background inotify monitor and csync server on exit
