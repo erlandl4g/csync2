@@ -20,6 +20,7 @@ cfg_file=csync2.cfg
 
 # Separate all passed options for csync
 csync_opts=("$@")
+echo "PASSED OPTS: ${csync_opts[*]}"
 
 
 # --- CSYNC SERVER ---
@@ -29,11 +30,16 @@ server_opts=()
 if [[ $* =~ -N[[:space:]]?([[:alnum:]\.]+) ]]  # hostname
 then
 	server_opts+=(-N "${BASH_REMATCH[1]}") # added as two elements
+else
+	echo "*** WARNING: No hostname specified ***"
+	sleep 1
 fi
 if [[ $* =~ -D[[:space:]]?([[:graph:]]+) ]]    # database path
 then
 	server_opts+=(-D "${BASH_REMATCH[1]}")
 fi
+
+echo "SERVER OPTS: ${server_opts[*]}"
 
 # Start csync server outputting timings to log for monitoring activity status
 csync2 -ii -t "${server_opts[@]}" &> $csync_log &
@@ -41,8 +47,8 @@ csync_pid=$!
 
 # Wait for server startup before checking log for errors
 sleep 0.5
-tail --lines=1 $csync_log | grep --quiet error  # is the last line an error?
-if [[ $? -eq 0 ]]
+ps --pid $csync_pid > /dev/null
+if [[ $? -ne 0 ]]
 then
 	echo "Failed to start csync server"
 	exit 1
@@ -72,9 +78,8 @@ do
 	fi
 done < "$cfg_path/$cfg_file"
 
-echo " INC: ${includes[*]}"
-echo " EXC: ${excludes[*]}"
-echo "OPTS: ${csync_opts[*]}"
+echo "INC: ${includes[*]}"
+echo "EXC: ${excludes[*]}"
 
 if [[ ${#includes[@]} -eq 0 ]]
 then
