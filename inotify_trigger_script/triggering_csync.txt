@@ -33,7 +33,7 @@ The new script is called `inotify_csync.sh`.
 	2) sends all dirty files to peers - this update will include *all* dirty files so any left over from previous times (or added in other ways) will be transferred
 
 * To avoid slow locks and coordination between inotify and file processing, a rolling queue and file position is used - the queue file is reset once a certain number of lines has passed
-* Locations are monitored using `inotifywait` which then pipes changed filenames for adding to the queue. Because it uses pipes, the kernel will block subsequent notifications until the current one has been handled - in other words, all file notifications will be safely handled in turn.
+* Locations are monitored using `inotifywait` with the filenames of triggered files directed to the queue.
 
 The script has no options of its own. Anything passed to it will be passed onto the `csync2` calls.
 
@@ -48,7 +48,7 @@ At the top of the script are variables for the update interval, the queue outfil
 
 `num_lines_until_reset` The total number of lines read from the file queue that will trigger a full reset and sync. This prevents the log file from becoming too large. A full sync is performed after resetting the file in case inotify added events between reading and resetting.
 
-`num_batched_changes_threshold` The number of file changes in one processed batch that will trigger a full csync check and sync. This is primarily to guard against missed events that can occur when the inotifywait buffer is full.
+`num_batched_changes_threshold` The number of file changes in one processed batch that will trigger a full csync check and sync. This avoids breaching any max file argument limits and also acts as a safety net if inotify misses events when there are many changing files.
 
 
 ## Notes
