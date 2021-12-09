@@ -205,10 +205,10 @@ do
 	if [[ ${#csync_files[@]} -ge $num_batched_changes_threshold ]]
 	then
 		# Large batch - run full sync and reset
-		# This is primarily to guard against missed events that can occur when the inotifywait buffer is full
+		# This avoids breaching any max file argument limits and also acts as a safety net if inotify misses events when there are many changing files
 		echo "* LARGE BATCH (${#csync_files[@]} files)"
 
-		reset_queue
+		csync_full_sync
 
 		# Jump back to sleep
 		continue
@@ -220,9 +220,9 @@ do
 	# Process files by sending csync commands
 	# Split into two stages so that outstanding dirty files can be processed regardless of when or where they were marked
 
-	#   1. Check and possibly mark queued files as dirty
+	#   1. Check and possibly mark queued files as dirty - recursive so nested dirs are handled even if inotify misses them
 	echo "  - Checking ${#csync_files[@]} files"
-	csync2 "${csync_opts[@]}" -c "${csync_files[@]}"
+	csync2 "${csync_opts[@]}" -cr "${csync_files[@]}"
 
 	#   2. Update outstanding dirty files on peers
 	echo "  - Updating all dirty files"
