@@ -50,6 +50,8 @@ At the top of the script are variables for the update interval, the queue outfil
 
 `num_batched_changes_threshold` The number of file changes in one processed batch that will trigger a full csync check and sync. This avoids breaching any max file argument limits and also acts as a safety net if inotify misses events when there are many changing files.
 
+`full_sync_interval` Seconds between a regular full sync - zero to turn off.
+
 
 ## Notes
 

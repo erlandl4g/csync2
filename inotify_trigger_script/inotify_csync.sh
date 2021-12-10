@@ -12,6 +12,7 @@ queue_file=/home/learn4gd/tmp/inotify_queue.log            # File used for event
 csync_log=/home/learn4gd/tmp/csync_server.log              # File used for monitoring csync server timings
 
 check_interval=0.5                   # Seconds between queue checks - fractions allowed
+full_sync_interval=$((60*60))        # Seconds between a regular full sync - zero to turn off
 num_lines_until_reset=200000         # Reset queue log file after reading this many lines
 num_batched_changes_threshold=15000  # Number of changes in one batch that will trigger a full sync and reset
 
@@ -141,6 +142,8 @@ function csync_full_sync()
 	csync_wait
 
 	csync2 "${csync_opts[@]}" -x
+
+	last_full_sync=$(date +%s)
 	echo "  - Done"
 }
 
@@ -170,6 +173,7 @@ csync_full_sync
 
 # Periodically monitor inotify queue file
 queue_line_pos=1
+last_full_sync=$(date +%s)
 while true
 do
 	# Delay between updates to allow for batches of inotify events to be gathered
@@ -180,11 +184,19 @@ do
 
 	if [[ ${#file_list[@]} -eq 0 ]]
 	then
-		# No new entries - time to check for reset
+		# No new entries - quiet time
+
+		# Check for reset
 		if [[ $queue_line_pos -ge $num_lines_until_reset ]]
 		then
 			reset_queue
+
+		# Check for regular full sync
+		elif (( full_sync_interval && ($(date +%s) - last_full_sync) > full_sync_interval ))
+		then
+			csync_full_sync
 		fi
+
 		# Jump back to sleep
 		continue
 	fi
