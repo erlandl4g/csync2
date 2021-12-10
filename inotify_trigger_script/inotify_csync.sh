@@ -47,15 +47,14 @@ csync_pid=$!
 
 # Wait for server startup before checking log for errors
 sleep 0.5
-ps --pid $csync_pid > /dev/null
-if [[ $? -ne 0 ]]
+if ! ps --pid $csync_pid > /dev/null
 then
 	echo "Failed to start csync server"
 	exit 1
 fi
 
 # Stop background csync server on exit
-trap "kill $csync_pid" EXIT
+trap 'kill $csync_pid' EXIT
 
 echo "* SERVER RUNNING"
 
@@ -114,7 +113,7 @@ done < <(inotifywait --monitor --recursive --event $file_events --format "%w%f" 
 inotify_pid=$!
 
 # Stop background inotify monitor and csync server on exit
-trap "kill $inotify_pid; kill $csync_pid" EXIT
+trap 'kill $inotify_pid; kill $csync_pid' EXIT
 
 echo "* INOTIFY RUNNING"
 
