@@ -196,17 +196,49 @@ do
 	((queue_line_pos+=${#file_list[@]}))
 
 	# Remove duplicates
-	mapfile -t csync_files < <(printf "%s\n" "${file_list[@]}" | sort -u)
+	mapfile -t file_list_no_dups < <(printf "%s\n" "${file_list[@]}" | sort -u)
+
+	# Recreate list without files in subdirectories - the csync check below is recursive so passing inner files is unnecessary
+
+	# NOTE: Works nicely for create but not deletes because the files don't exist to check for directory status
+	# Would have to bring along the ISDIR status from the inotify events to improve this
+	# However, no worthwhile speed increase in csync check when passing just one path vs. all the files within so better to scrap this and keep the simplicity
+	csync_paths=()
+	i=0
+	num_files=${#file_list_no_dups[@]}
+	while [[ $i -lt $num_files ]]
+	do
+		pathname=${file_list_no_dups[$i]}
+
+		# Add this entry and advance
+		csync_paths+=("$pathname")
+		((i++))
+
+		if [[ -d $pathname ]]
+		then
+			# Directory - skip subsequent entries if they're within this directory
+			while [[ $i -lt $num_files ]]
+			do
+				if [[ ${file_list_no_dups[$i]} != $pathname* ]]
+				then
+					# File entry does not begin with subdirectory - stop the check
+					# The list is sorted so no match equals the end of that path in the list
+					break;
+				fi
+				((i++))
+			done
+		fi
+	done
 
 	# DEBUG: Output files processed in each cycle
-	# printf "%s\n" "${csync_files[@]}" >> "/tmp/csync_$(date +%s%3N).log"
+	# printf "%s\n" "${csync_paths[@]}" >> "/tmp/csync_$(date +%s%3N).log"
 
 	# Check number of files in this batch
-	if [[ ${#csync_files[@]} -ge $num_batched_changes_threshold ]]
+	if [[ ${#csync_paths[@]} -ge $num_batched_changes_threshold ]]
 	then
 		# Large batch - run full sync and reset
 		# This avoids breaching any max file argument limits and also acts as a safety net if inotify misses events when there are many changing files
-		echo "* LARGE BATCH (${#csync_files[@]} files)"
+		echo "* LARGE BATCH (${#csync_paths[@]} files)"
 
 		csync_full_sync
 
@@ -221,8 +253,8 @@ do
 	# Split into two stages so that outstanding dirty files can be processed regardless of when or where they were marked
 
 	#   1. Check and possibly mark queued files as dirty - recursive so nested dirs are handled even if inotify misses them
-	echo "  - Checking ${#csync_files[@]} files"
-	csync2 "${csync_opts[@]}" -cr "${csync_files[@]}"
+	echo "  - Checking ${#csync_paths[@]} files"
+	csync2 "${csync_opts[@]}" -cr "${csync_paths[@]}"
 
 	#   2. Update outstanding dirty files on peers
 	echo "  - Updating all dirty files"
