@@ -71,3 +71,23 @@ The new `inotify_csync.sh` script **replaces** your other automatic checking scr
 The new script should be **run once at startup on each server**. It stays open with inotifywait in monitor mode. You could use systemd to launch this at startup.
 
 The csync servers are still required as before for receiving and reacting to network commands sent by csync via the `inotify_csync.sh` script. You can run that with inetd or systemd.
+
+## Inotify settings
+
+Set Inotify watch limits
+
+#Shows how many watches available now
+cat /proc/sys/fs/inotify/max_user_watches
+
+vim /etc/sysctl.conf
+
+#Add the following:
+
+fs.inotify.max_user_watches=400000
+
+#To activate immediatelly run:
+
+sysctl fs.inotify.max_user_watches=400000
+
+sysctl -p
+
