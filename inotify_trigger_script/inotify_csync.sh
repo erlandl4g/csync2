@@ -15,6 +15,7 @@ check_interval=0.5                   # Seconds between queue checks - fractions 
 full_sync_interval=$((60*60))        # Seconds between a regular full sync - zero to turn off
 num_lines_until_reset=200000         # Reset queue log file after reading this many lines
 num_batched_changes_threshold=15000  # Number of changes in one batch that will trigger a full sync and reset
+parallel_updates=1                   # Flag (0/1) to toggle updating of peers/nodes in parallel
 
 cfg_path=/usr/local/etc
 cfg_file=csync2.cfg
@@ -30,7 +31,8 @@ echo "PASSED OPTS: ${csync_opts[*]}"
 server_opts=()
 if [[ $* =~ -N[[:space:]]?([[:alnum:]\.]+) ]]  # hostname
 then
-	server_opts+=(-N "${BASH_REMATCH[1]}") # added as two elements
+	this_node=${BASH_REMATCH[1]}
+	server_opts+=(-N "$this_node") # added as two elements
 else
 	echo "*** WARNING: No hostname specified ***"
 	sleep 1
@@ -46,7 +48,7 @@ echo "SERVER OPTS: ${server_opts[*]}"
 csync2 -ii -t "${server_opts[@]}" &> $csync_log &
 csync_pid=$!
 
-# Wait for server startup before checking log for errors
+# Wait for server startup then check
 sleep 0.5
 if ! ps --pid $csync_pid > /dev/null
 then
@@ -68,7 +70,10 @@ do
 	# Ignore comments and blank lines
 	if [[ ! $key =~ ^\ *# && -n $key ]]
 	then
-		if [[ $key == "include" ]]
+		if [[ $key == "host" && $value != $this_node* ]]
+		then
+			nodes+=("${value%;}")
+		elif [[ $key == "include" ]]
 		then
 			includes+=("${value%;}")
 		elif [[ $key == "exclude" ]]
@@ -78,6 +83,7 @@ do
 	fi
 done < "$cfg_path/$cfg_file"
 
+echo "NOD: ${nodes[*]}"
 echo "INC: ${includes[*]}"
 echo "EXC: ${excludes[*]}"
 
@@ -122,7 +128,7 @@ echo "* INOTIFY RUNNING"
 # --- HELPERS ---
 
 # Wait until csync server is quiet
-function csync_wait()
+function csync_server_wait()
 {
 	# Wait until the end timestamp record appears in the last log line or if the file is empty
 	until tail --lines=1 $csync_log | grep --quiet TOTALTIME || [[ ! -s $csync_log ]]
@@ -139,9 +145,22 @@ function csync_full_sync()
 	echo "* FULL SYNC"
 
 	# First wait until csync server is quiet
-	csync_wait
+	csync_server_wait
 
-	csync2 "${csync_opts[@]}" -x
+	if (( parallel_updates ))
+	then
+		# Full check for each node in parallel
+		update_pids=()
+		for node in "${nodes[@]}"
+		do
+			csync2 "${csync_opts[@]}" -x -P "$node" &
+			update_pids+=($!)
+		done
+		wait "${update_pids[@]}"
+	else
+		# Check nodes in sequence
+		csync2 "${csync_opts[@]}" -x
+	fi
 
 	last_full_sync=$(date +%s)
 	echo "  - Done"
@@ -226,7 +245,7 @@ do
 	fi
 
 	# Wait until csync server is quiet
-	csync_wait
+	csync_server_wait
 
 	# Process files by sending csync commands
 	# Split into two stages so that outstanding dirty files can be processed regardless of when or where they were marked
@@ -237,7 +256,21 @@ do
 
 	#   2. Update outstanding dirty files on peers
 	echo "  - Updating all dirty files"
-	csync2 "${csync_opts[@]}" -u
+
+	if (( parallel_updates ))
+	then
+		# Update each node in parallel
+		update_pids=()
+		for node in "${nodes[@]}"
+		do
+			csync2 "${csync_opts[@]}" -u -P "$node" &
+			update_pids+=($!)
+		done
+		wait "${update_pids[@]}"
+	else
+		# Update nodes in sequence
+		csync2 "${csync_opts[@]}" -u
+	fi
 
 	echo "  - Done"
 done

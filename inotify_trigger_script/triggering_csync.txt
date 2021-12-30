@@ -24,7 +24,7 @@ The new script is called `inotify_csync.sh`.
 ## Workings
 
 1. A csync server is started using the passed options - this instance outputs activity timestamps to a log file for monitoring
-2. Included and excluded directories are pulled from the csync2.cfg file
+2. Hosts, included and excluded directories are pulled from the csync2.cfg file
 3. inotify monitors these locations in the background and adds changed files to a FIFO queue (a file of your choosing)
 4. The queue is then read periodically looking for new items - duplicates are removed in readiness for running csync commands
 5. The csync server log is used to check for activity - csync commands are delayed until there is no activity in order to avoid deadlocks
@@ -34,6 +34,7 @@ The new script is called `inotify_csync.sh`.
 
 * To avoid slow locks and coordination between inotify and file processing, a rolling queue and file position is used - the queue file is reset once a certain number of lines has passed
 * Locations are monitored using `inotifywait` with the filenames of triggered files directed to the queue.
+* csync commands for each peer/node can be run in parallel - this can cause deadlocks in SQLite mode so MySQL or PostgreSQL are preferred.
 
 The script has no options of its own. Anything passed to it will be passed onto the `csync2` calls.
 
@@ -41,7 +42,7 @@ Example
 
 `./inotify_csync.sh -N 2.csync2.test`
 
-At the top of the script are variables for the update interval, the queue outfile, the file events to monitor and the csync system directory (defaults to /etc) and config file name.
+At the top of the script are variables for the update interval, the queue outfile, the file events to monitor and the csync system directory and config file name.
 
 
 ## Settings
@@ -52,13 +53,14 @@ At the top of the script are variables for the update interval, the queue outfil
 
 `full_sync_interval` Seconds between a regular full sync - zero to turn off.
 
+`parallel_updates` A flag (0/1) to toggle updating of peers/nodes in parallel.
+
 
 ## Notes
 
 * Directories are monitored recursively
-* Watching file events: close_write,move,delete - we want to keep the list as short as possible
 * The `close_write` inotify file event also catches actions `modify`, `attrib` and `create`
-* It is best to change the csync tempdir to an external directory so that temp files in the watched directories do not trigger a sync (but temp files will not be synced because they do not exist in the csync db)
+* It is best to change the csync tempdir to an external directory so that temp files in the watched directories do not trigger a sync (but, if not, temp files will not be synced because they do not exist in the csync db)
 * **The directory specified for the tempdir config must be on the same filesystem as the watched directories** - see csync manual for details
 
 
@@ -68,6 +70,4 @@ Dependent on `inotify-tools` which should be available in most package managers.
 
 The new `inotify_csync.sh` script **replaces** your other automatic checking scripts (-x option) - disable that on all servers.
 
-The new script should be **run once at startup on each server**. It stays open with inotifywait in monitor mode. You could use systemd to launch this at startup.
-
-The csync servers are still required as before for receiving and reacting to network commands sent by csync via the `inotify_csync.sh` script. You can run that with inetd or systemd.
+The new script should be **run once at startup on each server**. It stays open running the main csync server daemon and inotifywait in monitor mode. You could use systemd to launch this at startup.
