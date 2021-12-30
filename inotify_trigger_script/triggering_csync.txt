@@ -71,3 +71,23 @@ Dependent on `inotify-tools` which should be available in most package managers.
 The new `inotify_csync.sh` script **replaces** your other automatic checking scripts (-x option) - disable that on all servers.
 
 The new script should be **run once at startup on each server**. It stays open running the main csync server daemon and inotifywait in monitor mode. You could use systemd to launch this at startup.
+
+
+## Inotify settings
+
+Set Inotify watch limits
+
+#Shows how many watches available now
+cat /proc/sys/fs/inotify/max_user_watches
+
+vim /etc/sysctl.conf
+
+#Add the following:
+
+fs.inotify.max_user_watches=400000
+
+#To activate immediatelly run:
+
+sysctl fs.inotify.max_user_watches=400000
+
+sysctl -p
