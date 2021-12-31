@@ -34,7 +34,7 @@ The new script is called `inotify_csync.sh`.
 
 * To avoid slow locks and coordination between inotify and file processing, a rolling queue and file position is used - the queue file is reset once a certain number of lines has passed
 * Locations are monitored using `inotifywait` with the filenames of triggered files directed to the queue.
-* csync commands for each peer/node can be run in parallel - this can cause deadlocks in SQLite mode so MySQL or PostgreSQL are preferred.
+* csync commands for each peer/node can be run in parallel - this can cause deadlocks in SQLite mode so MySQL or PostgreSQL are preferred. MySQL is performing much slower than PostgreSQL
 
 The script has no options of its own. Anything passed to it will be passed onto the `csync2` calls.
 
