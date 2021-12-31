@@ -36,7 +36,7 @@ The new script is called `inotify_csync.sh`.
 * Locations are monitored using `inotifywait` with the filenames of triggered files directed to the queue.
 * csync commands for each peer/node can be run in parallel - this can cause deadlocks in SQLite mode so MySQL or PostgreSQL are preferred. MySQL is performing much slower than PostgreSQL
 
-The script has no options of its own. Anything passed to it will be passed onto the `csync2` calls.
+The script has no options of its own. Anything passed to it will be passed onto the `csync2` calls. Each instance will only process the dirty entries for the specified peer by using -P flag which allows skipping other peer dirty markings and marking only 1 peer selected. Parallel updates are basically solved by utilizing several instances run  using & in shell script (which allows not waiting for other process to finish) and using -P flag for Csync2 which allows processing dirty pages just for one peer.
 
 Example
 
