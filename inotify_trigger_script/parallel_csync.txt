@@ -15,121 +15,36 @@ I wanted to add multithreading to update operations directly in the csync codeba
 The best alternative (and not a bad one) is to run several background processes of the csync command for each peer. I've done this and it works well. I thought there would be an overhead for starting up the parallel csync  processes but there is none.
 
 
-## Install PostgreSQL for Csync
-
-Centos 7:
-
-#install a repository configuration package using the official PostgreSQL repository for CentOS:
-
-yum install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
-
-yum install -y postgresql14-server postgresql14-devel
-
-# Initialize the database and enable automatic start:
-/usr/pgsql-14/bin/postgresql-14-setup initdb
-systemctl enable postgresql-14
-systemctl start postgresql-14
-
-
-
-#Ubuntu 20.04
-
-
-# Create the file repository configuration:
-sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-
-# Import the repository signing key:
-wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-
-# Update the package lists:
-sudo apt update
-
-# Install the latest version of PostgreSQL.
-
-sudo apt install postgresql postgresql-contrib postgresql-server-dev-all
-
-systemctl enable postgresql
-
-systemctl start postgresql
-
-
-+++++++++++++++++++++++++++++++++++++++
-#General PostGreSQL usage:
-
-sudo -u postgres psql
-
-#Create user:
-
-sudo -u postgres createuser --interactive
-
-#Create Database
-
-sudo -u postgres createdb csync
-
-#You can check your current connection information by typing (one connected to psql):
-
-\conninfo
-
-+++++++++++++++++++++++++++++++++++++++
-
-### Postgres Server database setup:
-
-
-By default, the UNIX account "postgres" is locked, which means it cannot be logged in using a password. If you use "sudo passwd postgres", the account is immediately unlocked. It is recommended to keep it locked and use: sudo -u postgres CMD. If this is not possible then set a strong password.
-
-#Create db user matching os user
-sudo -u postgres createuser learn4gd
-
-#Create database
-sudo -u postgres createdb -O learn4gd csync
-
-#Now psql can be used from user account (e.g. learn4gd)
-psql -d csync
-
-#Login via postgres user
-sudo -u postgres psql  -d csync
-
-#Some PSQL Commands
-\du -  shows users
-\dt - show tables
-\dt+
-\l   - show databases
-\l+
-show hba_file; - find database config file
-
-#Change login permissions for database
-#Use `trust` to allow any user because this data is not sensitive
-vim /var/lib/pgsql/14/data/pg_hba.conf
-
-Make sure the host lines has trust method:
-local   all     all     trust
-host	all	all	127.0.0.1/32	trust
-host	all	all	::1/128	trust
-
-
-
-Log files
-less /var/lib/pgsql/data/log/...
-
-
 ### Csync Build
 
-Csync must be built with Postgres support.
-
-Packaged Library Dependencies
-postgresql
-postgresql-devel
-
 Configure and Make
-./configure --enable-postgres
+cd /opt/csync2
+./autogen.sh clean
+./autogen.sh
+./configure --prefix=/usr --localstatedir=/var --sysconfdir=/etc/csync2/ --enable-sqlite3 --enable-systemd --disable-gnutls
 
-Line 155 in `configure.ac` will fail if the `pg_config` util is not available. Either install the `postgresql-server-devel` package or hardcode the path to the `libpq.so`:
-
-LIBPQ_SO=$( readlink /usr/lib64/libpq.so | sed -e 's,^.*/,,;s/\(\.so\.[0-9]*\)\..*$/\1/')]
-
+make clean
 make
 make install
 
-#New csync command format
-csync2 -D pgsql://learn4gd@localhost/csync -N 1.csync2.test -x
+
+#Check libraries it is built with are showing up correctly and install missing ones:
+
+ldd /usr/sbin/csync2
+
+
+#Csyncs command format for manual run:
+#Sender:
+csync2  -N 10.10.10.7 -xv
+
+#Receiver:
+csync2 -N 10.10.10.5 -iiv
+
+
+#Csync2 will issue Permission error (on very verbose mode) if config and/or key file is not matching on all nodes. Generate one key and share it with other nodes (otherwise Permission error will appear - <5774> Local> Permission denied!\n)
+
+scp /etc/csync2/* root@10.10.10.1:/etc/csync2/
+scp /etc/csync2/* root@10.10.10.3:/etc/csync2/
+scp /etc/csync2/* root@10.10.10.7:/etc/csync2/
+
 
