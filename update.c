@@ -236,10 +236,10 @@ already_gone:
 		goto maybe_auto_resolve;
 
 skip_action:
-	SQL("Remove dirty-file entry.",
-		"DELETE FROM dirty WHERE filename = '%s' "
-		"AND peername = '%s'", url_encode(filename),
-		url_encode(peername));
+	// SQL("Remove dirty-file entry.",
+	// 	"DELETE FROM dirty WHERE filename = '%s' "
+	// 	"AND peername = '%s'", url_encode(filename),
+	// 	url_encode(peername));
 
 	if (auto_resolve_run)
 		csync_error_count--;
@@ -498,10 +498,10 @@ skip_action:
 		}
 	}
 
-	SQL("Remove dirty-file entry.",
-		"DELETE FROM dirty WHERE filename = '%s' "
-		"AND peername = '%s'", url_encode(filename),
-		url_encode(peername));
+	// SQL("Remove dirty-file entry.",
+	// 	"DELETE FROM dirty WHERE filename = '%s' "
+	// 	"AND peername = '%s'", url_encode(filename),
+	// 	url_encode(peername));
 
 	if (auto_resolve_run)
 		csync_error_count--;
@@ -869,6 +869,9 @@ void csync_update(const char ** patlist, int patnum, int recursive, int dry_run)
 		}
 found_asactive:
 		csync_update_host(t->value, patlist, patnum, recursive, dry_run);
+
+		SQL("Deleting batch of dirty file entries",
+			"DELETE FROM dirty WHERE peername = '%s'", url_encode(t->value));
 	}
 
 	textlist_free(tl);
