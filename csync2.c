@@ -68,6 +68,7 @@ int csync_debug_level = 0;
 FILE *csync_debug_out = 0;
 int csync_syslog = 0;
 int csync_atomic_patch = 1; //TODO - make an inverse flag.
+int csync_batch_deletes = 0;
 
 int csync_server_child_pid = 0;
 int csync_timestamps = 0;
@@ -174,6 +175,12 @@ PACKAGE_STRING " - cluster synchronization tool, 2nd generation\n"
 "	-A	Open database in asynchronous mode. This will cause data\n"
 "		corruption if the operating system crashes or the computer\n"
 "		loses power.\n"
+"\n"
+"	-b	Batch removal of dirty file entries and run them after\n"
+"		processing all files for each peer. This allows the database\n"
+"		side of update operations to be read-only by delaying the\n"
+"		writes (and potential locking) until all file transfers\n"
+"		have completed.\n"
 "\n"
 "	-N address	When running in stand-alone mode with -ii bind to a\n"
 "		specific interface. You can pass either a hostname or ip\n"
@@ -437,7 +444,7 @@ int main(int argc, char ** argv)
 		return 1;
 	}
 
-	while ( (opt = getopt(argc, argv, "W:s:Ftp:G:P:C:D:N:O::HBAIXULlSTMRavhcuoimfxrd")) != -1 ) {
+	while ( (opt = getopt(argc, argv, "W:s:Ftp:G:P:C:D:N:O::HBAIXULlSTMRabvhcuoimfxrd")) != -1 ) {
 
 		switch (opt) {
 			case 'W':
@@ -484,6 +491,9 @@ int main(int argc, char ** argv)
 				break;
 			case 'A':
 				db_sync_mode = 0;
+				break;
+			case 'b':
+				csync_batch_deletes = 1;
 				break;
 			case 'I':
 				init_run = 1;

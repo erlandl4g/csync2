@@ -149,11 +149,14 @@ function csync_full_sync()
 
 	if (( parallel_updates ))
 	then
-		# Full check for each node in parallel
+		# Check files separately from parallel update
+		csync2 "${csync_opts[@]}" -cr "/"
+
+		# Update each node in parallel
 		update_pids=()
 		for node in "${nodes[@]}"
 		do
-			csync2 "${csync_opts[@]}" -x -P "$node" &
+			csync2 "${csync_opts[@]}" -ub -P "$node" &
 			update_pids+=($!)
 		done
 		wait "${update_pids[@]}"
@@ -263,7 +266,7 @@ do
 		update_pids=()
 		for node in "${nodes[@]}"
 		do
-			csync2 "${csync_opts[@]}" -u -P "$node" &
+			csync2 "${csync_opts[@]}" -ub -P "$node" &
 			update_pids+=($!)
 		done
 		wait "${update_pids[@]}"
