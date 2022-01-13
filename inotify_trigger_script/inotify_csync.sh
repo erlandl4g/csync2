@@ -27,7 +27,7 @@ csync_opts=("$@")
 # --- VERSION ---
 
 echo "CSync Controller"
-echo "Version 13 Jan 2022 19:31"
+echo "Version 13 Jan 2022 22:22"
 echo
 echo "Passed options: ${csync_opts[*]}"
 echo
@@ -114,6 +114,9 @@ fi
 
 # --- INOTIFY FILE MONITOR ---
 
+echo
+echo "* INOTIFY"
+
 # Reset queue file
 truncate -s 0 $queue_file
 
@@ -140,8 +143,7 @@ inotify_pid=$!
 # Stop background inotify monitor and csync server on exit
 trap 'kill $inotify_pid; kill $csync_pid' EXIT
 
-echo
-echo "* INOTIFY"
+sleep 1
 echo "  Running..."
 
 
@@ -171,18 +173,21 @@ function csync_full_sync()
 	if (( parallel_updates ))
 	then
 		# Check files separately from parallel update
+		echo "  Checking all files"
 		csync2 "${csync_opts[@]}" -cr "/"
 
 		# Update each node in parallel
 		update_pids=()
 		for node in "${nodes[@]}"
 		do
+			echo "  Updating $node"
 			csync2 "${csync_opts[@]}" -ub -P "$node" &
 			update_pids+=($!)
 		done
 		wait "${update_pids[@]}"
 	else
 		# Check nodes in sequence
+		echo "  Checking and updating peers sequentially"
 		csync2 "${csync_opts[@]}" -x
 	fi
 
@@ -211,7 +216,7 @@ function reset_queue()
 
 # --- QUEUE PROCESSING ---
 
-# First run a full check and sync before queue processing begins - after file monitor started so no changes are missed in-between
+# Run a full check and sync before queue processing begins - after file monitor started so no changes are missed in-between
 csync_full_sync
 
 
@@ -281,20 +286,20 @@ do
 	csync2 "${csync_opts[@]}" -cr "${csync_files[@]}"
 
 	#   2. Update outstanding dirty files on peers
-	echo "  Updating all dirty files"
-
 	if (( parallel_updates ))
 	then
 		# Update each node in parallel
 		update_pids=()
 		for node in "${nodes[@]}"
 		do
+			echo "  Updating $node"
 			csync2 "${csync_opts[@]}" -ub -P "$node" &
 			update_pids+=($!)
 		done
 		wait "${update_pids[@]}"
 	else
 		# Update nodes in sequence
+		echo "  Updating peers sequentially"
 		csync2 "${csync_opts[@]}" -u
 	fi
 
