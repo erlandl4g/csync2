@@ -21,7 +21,7 @@
 #ifndef CSYNC2_H
 #define CSYNC2_H 1
 
-#define CSYNC2_VERSION "2.0"
+#define CSYNC2_VERSION "2.1"
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -437,6 +437,7 @@ extern int csync_server_child_pid;
 extern int csync_timestamps;
 extern int csync_new_force;
 extern int csync_atomic_patch;
+extern int csync_batch_deletes;
 
 extern char myhostname[];
 extern int bind_to_myhostname;

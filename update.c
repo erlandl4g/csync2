@@ -33,6 +33,9 @@
 
 static int connection_closed_error = 1;
 
+// Batch of filenames to be deleted from dirty table - used when csync_batch_deletes on
+static struct textlist *batched_dirty_deletes;
+
 enum connection_response read_conn_status(const char *file, const char *host)
 {
 	char line[4096];
@@ -236,10 +239,14 @@ already_gone:
 		goto maybe_auto_resolve;
 
 skip_action:
-	SQL("Remove dirty-file entry.",
-		"DELETE FROM dirty WHERE filename = '%s' "
-		"AND peername = '%s'", url_encode(filename),
-		url_encode(peername));
+	if (csync_batch_deletes) {
+		textlist_add(&batched_dirty_deletes, filename, 0);
+	} else {
+		SQL("Remove dirty-file entry.",
+			"DELETE FROM dirty WHERE filename = '%s' "
+			"AND peername = '%s'", url_encode(filename),
+			url_encode(peername));
+	}
 
 	if (auto_resolve_run)
 		csync_error_count--;
@@ -498,10 +505,14 @@ skip_action:
 		}
 	}
 
-	SQL("Remove dirty-file entry.",
-		"DELETE FROM dirty WHERE filename = '%s' "
-		"AND peername = '%s'", url_encode(filename),
-		url_encode(peername));
+	if (csync_batch_deletes) {
+		textlist_add(&batched_dirty_deletes, filename, 0);
+	} else {
+		SQL("Remove dirty-file entry.",
+			"DELETE FROM dirty WHERE filename = '%s' "
+			"AND peername = '%s'", url_encode(filename),
+			url_encode(peername));
+	}
 
 	if (auto_resolve_run)
 		csync_error_count--;
@@ -846,7 +857,7 @@ void csync_update_host(const char *peername,
 
 void csync_update(const char ** patlist, int patnum, int recursive, int dry_run)
 {
-	struct textlist *tl = 0, *t;
+	struct textlist *tl = 0, *t, *dt;
 
 	SQL_BEGIN("Get hosts from dirty table",
 		"SELECT peername FROM dirty GROUP BY peername")
@@ -869,6 +880,19 @@ void csync_update(const char ** patlist, int patnum, int recursive, int dry_run)
 		}
 found_asactive:
 		csync_update_host(t->value, patlist, patnum, recursive, dry_run);
+
+		if (csync_batch_deletes) {
+			if (!dry_run) {
+				for (dt = batched_dirty_deletes; dt != 0; dt = dt->next) {
+					SQL("Remove dirty-file entry from batch",
+						"DELETE FROM dirty WHERE filename = '%s' "
+						"AND peername = '%s'", url_encode(dt->value),
+						url_encode(t->value));
+				}
+			}
+			textlist_free(batched_dirty_deletes);
+			batched_dirty_deletes = NULL;
+		}
 	}
 
 	textlist_free(tl);

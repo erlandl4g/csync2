@@ -34,7 +34,7 @@ The new script is called `inotify_csync.sh`.
 
 * To avoid slow locks and coordination between inotify and file processing, a rolling queue and file position is used - the queue file is reset once a certain number of lines has passed
 * Locations are monitored using `inotifywait` with the filenames of triggered files directed to the queue.
-* csync commands for each peer/node can be run in parallel - this can cause deadlocks in SQLite mode so MySQL or PostgreSQL are preferred. MySQL is performing much slower than PostgreSQL
+* csync updates for each peer/node can be run in parallel using the `parallel_updates` switch. This would cause deadlocks in SQLite as each process deletes rows from the `dirty` table after every file update. To workaround this, csync was slightly modified to allow delaying of delete statements until all transfers have finished. This solved the issue. Another alternative is to use PostgreSQL or MySQL. In tests, PostgreSQL performed better than MySQL.
 
 The script has no options of its own. Anything passed to it will be passed onto the `csync2` calls.
 
@@ -53,7 +53,7 @@ At the top of the script are variables for the update interval, the queue outfil
 
 `full_sync_interval` Seconds between a regular full sync - zero to turn off.
 
-`parallel_updates` A flag (0/1) to toggle updating of peers/nodes in parallel. In parallel mode each peer is updated separately by starting multiple background instances of csync with the -P flag to restrict `dirty` file processing.
+`parallel_updates` A flag (0/1) to toggle updating of peers/nodes in parallel. In parallel mode each peer is updated separately by starting multiple background instances of csync with the `-P` flag to restrict `dirty` file processing. The new `-b` is also used to avoid database locking by pushing database writes to the end of the update process.
 
 
 ## Notes
