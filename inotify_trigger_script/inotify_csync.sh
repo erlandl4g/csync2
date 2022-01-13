@@ -22,7 +22,21 @@ cfg_file=csync2.cfg
 
 # Separate all passed options for csync
 csync_opts=("$@")
-echo "PASSED OPTS: ${csync_opts[*]}"
+
+
+# --- VERSION ---
+
+echo "CSync Controller"
+echo "Version 13 Jan 2022 19:31"
+echo
+echo "Passed options: ${csync_opts[*]}"
+echo
+echo "* SETTINGS"
+echo "  check_interval                = ${check_interval}s"
+echo "  full_sync_interval            = ${full_sync_interval}s"
+echo "  num_lines_until_reset         = $num_lines_until_reset"
+echo "  num_batched_changes_threshold = $num_batched_changes_threshold"
+echo "  parallel_updates              = $parallel_updates"
 
 
 # --- CSYNC SERVER ---
@@ -35,14 +49,16 @@ then
 	server_opts+=(-N "$this_node") # added as two elements
 else
 	echo "*** WARNING: No hostname specified ***"
-	sleep 1
+	sleep 2
 fi
 if [[ $* =~ -D[[:space:]]?([[:graph:]]+) ]]    # database path
 then
 	server_opts+=(-D "${BASH_REMATCH[1]}")
 fi
 
-echo "SERVER OPTS: ${server_opts[*]}"
+echo
+echo "* SERVER"
+echo "  Options: ${server_opts[*]}"
 
 # Start csync server outputting timings to log for monitoring activity status
 csync2 -ii -t "${server_opts[@]}" &> $csync_log &
@@ -59,7 +75,7 @@ fi
 # Stop background csync server on exit
 trap 'kill $csync_pid' EXIT
 
-echo "* SERVER RUNNING"
+echo "  Running..."
 
 
 # --- PARSE CSYNC CONFIG FILE ---
@@ -83,9 +99,11 @@ do
 	fi
 done < "$cfg_path/$cfg_file"
 
-echo "NOD: ${nodes[*]}"
-echo "INC: ${includes[*]}"
-echo "EXC: ${excludes[*]}"
+echo
+echo "* CONFIG"
+echo "  Peers:    ${nodes[*]}"
+echo "  Includes: ${includes[*]}"
+echo "  Excludes: ${excludes[*]}"
 
 if [[ ${#includes[@]} -eq 0 ]]
 then
@@ -122,7 +140,9 @@ inotify_pid=$!
 # Stop background inotify monitor and csync server on exit
 trap 'kill $inotify_pid; kill $csync_pid' EXIT
 
-echo "* INOTIFY RUNNING"
+echo
+echo "* INOTIFY"
+echo "  Running..."
 
 
 # --- HELPERS ---
@@ -142,6 +162,7 @@ function csync_server_wait()
 # Run a full check and sync operation
 function csync_full_sync()
 {
+	echo
 	echo "* FULL SYNC"
 
 	# First wait until csync server is quiet
@@ -166,13 +187,14 @@ function csync_full_sync()
 	fi
 
 	last_full_sync=$(date +%s)
-	echo "  - Done"
+	echo "  Done"
 }
 
 
 # Reset queue
 function reset_queue()
 {
+	echo
 	echo "* RESET QUEUE LOG"
 
 	# Reset queue log file
@@ -223,6 +245,7 @@ do
 		continue
 	fi
 
+	echo
 	echo "* PROCESSING QUEUE (line $queue_line_pos)"
 
 	# Advance queue file position
@@ -254,11 +277,11 @@ do
 	# Split into two stages so that outstanding dirty files can be processed regardless of when or where they were marked
 
 	#   1. Check and possibly mark queued files as dirty - recursive so nested dirs are handled even if inotify misses them
-	echo "  - Checking ${#csync_files[@]} files"
+	echo "  Checking ${#csync_files[@]} files"
 	csync2 "${csync_opts[@]}" -cr "${csync_files[@]}"
 
 	#   2. Update outstanding dirty files on peers
-	echo "  - Updating all dirty files"
+	echo "  Updating all dirty files"
 
 	if (( parallel_updates ))
 	then
@@ -275,5 +298,5 @@ do
 		csync2 "${csync_opts[@]}" -u
 	fi
 
-	echo "  - Done"
+	echo "  Done"
 done
