@@ -883,12 +883,14 @@ found_asactive:
 
 		if (csync_batch_deletes) {
 			if (!dry_run) {
+				csync_debug(2, "Starting batched dirty deletes for %s\n", t->value);
 				for (dt = batched_dirty_deletes; dt != 0; dt = dt->next) {
 					SQL("Remove dirty-file entry from batch",
 						"DELETE FROM dirty WHERE filename = '%s' "
 						"AND peername = '%s'", url_encode(dt->value),
 						url_encode(t->value));
 				}
+				csync_debug(2, "Finished batched dirty deletes for %s\n", t->value);
 			}
 			textlist_free(batched_dirty_deletes);
 			batched_dirty_deletes = NULL;
