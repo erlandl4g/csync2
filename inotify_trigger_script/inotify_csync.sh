@@ -17,7 +17,8 @@ num_lines_until_reset=200000         # Reset queue log file after reading this m
 num_batched_changes_threshold=15000  # Number of changes in one batch that will trigger a full sync and reset
 parallel_updates=1                   # Flag (0/1) to toggle updating of peers/nodes in parallel
 
-cfg_path=/usr/local/etc
+#cfg_path=/usr/local/etc
+cfg_path=/etc/csync2
 cfg_file=csync2.cfg
 
 # Separate all passed options for csync
