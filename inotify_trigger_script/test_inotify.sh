@@ -4,7 +4,8 @@
 
 file_events="create,modify,move,delete,attrib" # No spaces in this list
 
-cfg_path=/usr/local/etc
+#cfg_path=/usr/local/etc
+cfg_path=/etc/csync2
 cfg_file=csync2.cfg
 
 # Parse csync2 config file for included and excluded locations
